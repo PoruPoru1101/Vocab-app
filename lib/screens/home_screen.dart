@@ -5,13 +5,41 @@ import 'calendar_screen.dart';
 import 'quiz_setup_screen.dart';
 import 'word_list_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final _auth = AuthService();
+  bool _linking = false;
+
+  Future<void> _linkGoogle() async {
+    setState(() => _linking = true);
+    try {
+      await _auth.linkAnonymousToGoogle();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Google アカウントを連携しました')),
+      );
+      setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('連携に失敗しました: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _linking = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final auth = AuthService();
-    final user = auth.currentUser;
+    final user = _auth.currentUser;
+    final isGuest = user?.isAnonymous ?? false;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('英単語学習'),
@@ -20,7 +48,7 @@ class HomeScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'サインアウト',
-            onPressed: () => auth.signOut(),
+            onPressed: () => _auth.signOut(),
           ),
         ],
       ),
@@ -31,21 +59,27 @@ class HomeScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (user != null) ...[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (user.photoURL != null)
-                      CircleAvatar(
-                        backgroundImage: NetworkImage(user.photoURL!),
-                        radius: 16,
+                if (isGuest)
+                  _GuestBadge(
+                    busy: _linking,
+                    onLinkGoogle: _linkGoogle,
+                  )
+                else
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (user.photoURL != null)
+                        CircleAvatar(
+                          backgroundImage: NetworkImage(user.photoURL!),
+                          radius: 16,
+                        ),
+                      const SizedBox(width: 8),
+                      Text(
+                        user.displayName ?? user.email ?? 'ユーザー',
+                        style: const TextStyle(fontSize: 16),
                       ),
-                    const SizedBox(width: 8),
-                    Text(
-                      user.displayName ?? user.email ?? 'ユーザー',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
                 const SizedBox(height: 32),
               ],
               _MenuButton(
@@ -86,6 +120,63 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _GuestBadge extends StatelessWidget {
+  const _GuestBadge({required this.busy, required this.onLinkGoogle});
+
+  final bool busy;
+  final VoidCallback onLinkGoogle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.person_outline, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'ゲストモード',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '他端末で同期するには Google アカウントに連携',
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).hintColor,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: busy ? null : onLinkGoogle,
+            icon: busy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.link, size: 18),
+            label: const Text('Google アカウントに連携'),
+          ),
+        ],
       ),
     );
   }

@@ -13,10 +13,10 @@ class _SignInScreenState extends State<SignInScreen> {
   final _auth = AuthService();
   bool _busy = false;
 
-  Future<void> _signIn() async {
+  Future<void> _runAuth(Future<void> Function() action) async {
     setState(() => _busy = true);
     try {
-      await _auth.signInWithGoogle();
+      await action();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -52,7 +52,8 @@ class _SignInScreenState extends State<SignInScreen> {
                 width: double.infinity,
                 height: 56,
                 child: FilledButton.icon(
-                  onPressed: _busy ? null : _signIn,
+                  onPressed:
+                      _busy ? null : () => _runAuth(_auth.signInWithGoogle),
                   icon: _busy
                       ? const SizedBox(
                           width: 20,
@@ -68,6 +69,30 @@ class _SignInScreenState extends State<SignInScreen> {
                     style: TextStyle(fontSize: 18),
                   ),
                 ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed:
+                      _busy ? null : () => _runAuth(_auth.signInAsGuest),
+                  icon: const Icon(Icons.person_outline),
+                  label: const Text(
+                    'ログインせずに使う (ゲスト)',
+                    style: TextStyle(fontSize: 15),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'ゲストモードではデータがこのブラウザのみに紐づきます。\n'
+                '他端末と同期されず、ブラウザのデータを消すと単語も失われます。',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).hintColor,
+                ),
+                textAlign: TextAlign.center,
               ),
             ],
           ),
