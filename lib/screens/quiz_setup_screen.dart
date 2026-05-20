@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -16,6 +18,7 @@ class QuizSetupScreen extends StatefulWidget {
 class _QuizSetupScreenState extends State<QuizSetupScreen> {
   final _repo = WordRepository();
   final _countController = TextEditingController(text: '10');
+  StreamSubscription<List<Word>>? _wordsSub;
 
   List<Word> _words = [];
   List<Word> _dueWords = [];
@@ -28,25 +31,23 @@ class _QuizSetupScreenState extends State<QuizSetupScreen> {
   void initState() {
     super.initState();
     _countController.addListener(_validate);
-    _load();
+    _wordsSub = _repo.watchAll().listen((words) {
+      if (!mounted) return;
+      setState(() {
+        _words = words;
+        _dueWords = words.where((w) => w.isDueForReview).toList();
+        _loading = false;
+        _resetCountForMode();
+        _validate();
+      });
+    });
   }
 
   @override
   void dispose() {
+    _wordsSub?.cancel();
     _countController.dispose();
     super.dispose();
-  }
-
-  Future<void> _load() async {
-    final words = await _repo.loadAll();
-    if (!mounted) return;
-    setState(() {
-      _words = words;
-      _dueWords = words.where((w) => w.isDueForReview).toList();
-      _loading = false;
-      _resetCountForMode();
-      _validate();
-    });
   }
 
   /// モード切替時に出題数の初期値を新しい上限内に調整。

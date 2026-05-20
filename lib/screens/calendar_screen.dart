@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 
@@ -14,6 +16,7 @@ class CalendarScreen extends StatefulWidget {
 
 class _CalendarScreenState extends State<CalendarScreen> {
   final _repo = WordRepository();
+  StreamSubscription<List<Word>>? _wordsSub;
 
   Map<DateTime, List<Word>> _wordsByDay = {};
   bool _loading = true;
@@ -27,25 +30,28 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final today = _normalize(DateTime.now());
     _focusedDay = today;
     _selectedDay = today;
-    _load();
+    _wordsSub = _repo.watchAll().listen((words) {
+      if (!mounted) return;
+      final map = <DateTime, List<Word>>{};
+      for (final w in words) {
+        if (w.createdAt == null) continue;
+        final key = _normalize(w.createdAt!);
+        map.putIfAbsent(key, () => []).add(w);
+      }
+      setState(() {
+        _wordsByDay = map;
+        _loading = false;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _wordsSub?.cancel();
+    super.dispose();
   }
 
   DateTime _normalize(DateTime d) => DateTime(d.year, d.month, d.day);
-
-  Future<void> _load() async {
-    final words = await _repo.loadAll();
-    if (!mounted) return;
-    final map = <DateTime, List<Word>>{};
-    for (final w in words) {
-      if (w.createdAt == null) continue;
-      final key = _normalize(w.createdAt!);
-      map.putIfAbsent(key, () => []).add(w);
-    }
-    setState(() {
-      _wordsByDay = map;
-      _loading = false;
-    });
-  }
 
   List<Word> _wordsForDay(DateTime day) {
     return _wordsByDay[_normalize(day)] ?? [];

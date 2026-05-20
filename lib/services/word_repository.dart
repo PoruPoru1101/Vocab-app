@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -68,7 +70,18 @@ class WordRepository {
       .map((snap) => snap.docs.map(_fromDoc).toList());
 
   Future<List<Word>> loadAll() async {
-    final snap = await _col.orderBy('createdAt', descending: true).get();
+    final query = _col.orderBy('createdAt', descending: true);
+    // まずローカルキャッシュから即時取得。あれば返す + バックグラウンドでサーバ更新。
+    try {
+      final cached = await query.get(const GetOptions(source: Source.cache));
+      if (cached.docs.isNotEmpty) {
+        unawaited(query.get()); // サーバ最新もバックグラウンドで取りに行く
+        return cached.docs.map(_fromDoc).toList();
+      }
+    } catch (_) {
+      // キャッシュなし、サーバ取得にフォールバック
+    }
+    final snap = await query.get();
     return snap.docs.map(_fromDoc).toList();
   }
 
