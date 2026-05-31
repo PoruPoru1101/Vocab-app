@@ -9,7 +9,18 @@ import '../services/word_repository.dart';
 import 'quiz_screen.dart';
 
 class QuizSetupScreen extends StatefulWidget {
-  const QuizSetupScreen({super.key});
+  const QuizSetupScreen({
+    super.key,
+    this.presetWords,
+    this.presetTitle,
+  });
+
+  /// 指定された単語リストでクイズを実行する場合に渡す
+  /// (例: カレンダーから「この日の単語」を出題する場合)
+  final List<Word>? presetWords;
+
+  /// プリセット表示時のサブタイトル (例: "2026/5/15 に追加した単語")
+  final String? presetTitle;
 
   @override
   State<QuizSetupScreen> createState() => _QuizSetupScreenState();
@@ -27,20 +38,30 @@ class _QuizSetupScreenState extends State<QuizSetupScreen> {
   QuizMode _mode = QuizMode.wordToMeaning;
   String? _countError;
 
+  bool get _isPreset => widget.presetWords != null;
+
   @override
   void initState() {
     super.initState();
     _countController.addListener(_validate);
-    _wordsSub = _repo.watchAll().listen((words) {
-      if (!mounted) return;
-      setState(() {
-        _words = words;
-        _dueWords = words.where((w) => w.isDueForReview).toList();
-        _loading = false;
-        _resetCountForMode();
-        _validate();
+    if (_isPreset) {
+      _words = widget.presetWords!;
+      _dueWords = _words.where((w) => w.isDueForReview).toList();
+      _loading = false;
+      _resetCountForMode();
+      _validate();
+    } else {
+      _wordsSub = _repo.watchAll().listen((words) {
+        if (!mounted) return;
+        setState(() {
+          _words = words;
+          _dueWords = words.where((w) => w.isDueForReview).toList();
+          _loading = false;
+          _resetCountForMode();
+          _validate();
+        });
       });
-    });
+    }
   }
 
   @override
@@ -155,6 +176,17 @@ class _QuizSetupScreenState extends State<QuizSetupScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        if (_isPreset && widget.presetTitle != null) ...[
+          Card(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            child: ListTile(
+              leading: const Icon(Icons.event),
+              title: Text(widget.presetTitle!),
+              subtitle: Text('${_words.length} 個の単語が対象'),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         Text('出題モード', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         Card(

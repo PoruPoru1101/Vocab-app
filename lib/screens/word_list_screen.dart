@@ -18,6 +18,26 @@ class WordListScreen extends StatefulWidget {
 
 class _WordListScreenState extends State<WordListScreen> {
   final _repo = WordRepository();
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Word> _filter(List<Word> words) {
+    if (_searchQuery.isEmpty) return words;
+    final q = _searchQuery.toLowerCase().trim();
+    return words.where((w) {
+      if (w.english.toLowerCase().contains(q)) return true;
+      for (final m in w.meanings.values) {
+        if (m.toLowerCase().contains(q)) return true;
+      }
+      return false;
+    }).toList();
+  }
 
   Future<void> _openEditor({Word? existing}) async {
     final result = await showDialog<_WordEditorResult>(
@@ -63,53 +83,94 @@ class _WordListScreenState extends State<WordListScreen> {
         title: const Text('単語一覧'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
-      body: StreamBuilder<List<Word>>(
-        stream: _repo.watchAll(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text('エラー: ${snapshot.error}'),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: '単語または意味で検索',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchQuery.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      ),
+                isDense: true,
+                border: const OutlineInputBorder(),
               ),
-            );
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final words = snapshot.data!;
-          if (words.isEmpty) {
-            return const Center(
-              child: Text(
-                '単語がまだ登録されていません。\n右下の + から追加してください。',
-                textAlign: TextAlign.center,
-              ),
-            );
-          }
-          return ListView.separated(
-            itemCount: words.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final w = words[index];
-              return ListTile(
-                title: Text(
-                  w.english,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: MeaningsDisplay(meanings: w.meanings),
-                ),
-                isThreeLine: w.meanings.length >= 2,
-                onTap: () => _openEditor(existing: w),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () => _confirmDelete(w),
-                ),
-              );
-            },
-          );
-        },
+              onChanged: (v) => setState(() => _searchQuery = v),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<List<Word>>(
+              stream: _repo.watchAll(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text('エラー: ${snapshot.error}'),
+                    ),
+                  );
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final allWords = snapshot.data!;
+                if (allWords.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      '単語がまだ登録されていません。\n右下の + から追加してください。',
+                      textAlign: TextAlign.center,
+                    ),
+                  );
+                }
+                final words = _filter(allWords);
+                if (words.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        '"$_searchQuery" にヒットする単語はありません',
+                        style: TextStyle(color: Theme.of(context).hintColor),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
+                return ListView.separated(
+                  itemCount: words.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final w = words[index];
+                    return ListTile(
+                      title: Text(
+                        w.english,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: MeaningsDisplay(meanings: w.meanings),
+                      ),
+                      isThreeLine: w.meanings.length >= 2,
+                      onTap: () => _openEditor(existing: w),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () => _confirmDelete(w),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openEditor(),

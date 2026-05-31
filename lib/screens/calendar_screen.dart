@@ -6,6 +6,7 @@ import 'package:table_calendar/table_calendar.dart';
 import '../models/word.dart';
 import '../services/word_repository.dart';
 import '../widgets/meaning_display.dart';
+import 'quiz_setup_screen.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -141,9 +142,29 @@ class _CalendarScreenState extends State<CalendarScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Text(
-            '$dateLabel に追加 (${words.length} 個)',
-            style: Theme.of(context).textTheme.titleSmall,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '$dateLabel に追加 (${words.length} 個)',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => QuizSetupScreen(
+                        presetWords: words,
+                        presetTitle: '$dateLabel に追加した単語',
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.quiz, size: 18),
+                label: const Text('この日の単語でクイズ'),
+              ),
+            ],
           ),
         ),
         Expanded(
