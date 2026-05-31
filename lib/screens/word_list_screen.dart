@@ -215,6 +215,9 @@ class _WordEditorDialog extends StatefulWidget {
 class _WordEditorDialogState extends State<_WordEditorDialog> {
   late final TextEditingController _englishCtrl;
   late final Map<PartOfSpeech, TextEditingController> _meaningCtrls;
+  late final FocusNode _englishFocus;
+  late final Map<PartOfSpeech, FocusNode> _meaningFocuses;
+  late final List<FocusNode> _focusOrder;
   final _formKey = GlobalKey<FormState>();
   String? _meaningsError;
 
@@ -222,17 +225,52 @@ class _WordEditorDialogState extends State<_WordEditorDialog> {
   void initState() {
     super.initState();
     _englishCtrl = TextEditingController(text: widget.initial?.english ?? '');
+    _englishFocus = _makeNavFocusNode();
     _meaningCtrls = {
       for (final p in PartOfSpeech.values)
         p: TextEditingController(text: widget.initial?.meanings[p] ?? ''),
     };
+    _meaningFocuses = {
+      for (final p in PartOfSpeech.values) p: _makeNavFocusNode(),
+    };
+    _focusOrder = [_englishFocus, ..._meaningFocuses.values];
+  }
+
+  /// 上下矢印キーで次/前のフィールドへ移動できる FocusNode を生成。
+  FocusNode _makeNavFocusNode() {
+    return FocusNode(
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          _moveFocus(1);
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          _moveFocus(-1);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+    );
+  }
+
+  void _moveFocus(int delta) {
+    final current = _focusOrder.indexWhere((f) => f.hasFocus);
+    if (current == -1) return;
+    final next = current + delta;
+    if (next < 0 || next >= _focusOrder.length) return;
+    _focusOrder[next].requestFocus();
   }
 
   @override
   void dispose() {
     _englishCtrl.dispose();
+    _englishFocus.dispose();
     for (final c in _meaningCtrls.values) {
       c.dispose();
+    }
+    for (final f in _meaningFocuses.values) {
+      f.dispose();
     }
     super.dispose();
   }
@@ -265,7 +303,22 @@ class _WordEditorDialogState extends State<_WordEditorDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.initial == null ? '単語を追加' : '単語を編集'),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(widget.initial == null ? '単語を追加' : '単語を編集'),
+          const SizedBox(height: 2),
+          Text(
+            '↑↓ で移動 / Enter で保存',
+            style: TextStyle(
+              fontSize: 11,
+              color: Theme.of(context).hintColor,
+              fontWeight: FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -275,6 +328,9 @@ class _WordEditorDialogState extends State<_WordEditorDialog> {
             children: [
               TextFormField(
                 controller: _englishCtrl,
+                focusNode: _englishFocus,
+                onFieldSubmitted: (_) => _submit(),
+                textInputAction: TextInputAction.next,
                 decoration: const InputDecoration(labelText: '英単語'),
                 autofocus: true,
                 validator: (v) =>
@@ -289,6 +345,11 @@ class _WordEditorDialogState extends State<_WordEditorDialog> {
               for (final pos in PartOfSpeech.values) ...[
                 TextFormField(
                   controller: _meaningCtrls[pos],
+                  focusNode: _meaningFocuses[pos],
+                  onFieldSubmitted: (_) => _submit(),
+                  textInputAction: pos == PartOfSpeech.values.last
+                      ? TextInputAction.done
+                      : TextInputAction.next,
                   decoration: InputDecoration(
                     labelText: pos.label,
                     isDense: true,
