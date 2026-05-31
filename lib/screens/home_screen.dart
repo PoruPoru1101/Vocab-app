@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/auth_service.dart';
 import 'calendar_screen.dart';
@@ -52,7 +53,19 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Center(
+      body: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.keyN): () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const WordListScreen(openEditorOnLoad: true),
+              ),
+            );
+          },
+        },
+        child: Focus(
+          autofocus: true,
+          child: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -119,6 +132,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
+        ),
+      ),
         ),
       ),
     );

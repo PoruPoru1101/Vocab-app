@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/word.dart';
 import '../services/word_repository.dart';
@@ -10,7 +11,10 @@ typedef _WordEditorResult = ({
 });
 
 class WordListScreen extends StatefulWidget {
-  const WordListScreen({super.key});
+  const WordListScreen({super.key, this.openEditorOnLoad = false});
+
+  /// 画面表示時に単語追加ダイアログを自動で開くかどうか
+  final bool openEditorOnLoad;
 
   @override
   State<WordListScreen> createState() => _WordListScreenState();
@@ -20,6 +24,16 @@ class _WordListScreenState extends State<WordListScreen> {
   final _repo = WordRepository();
   final _searchController = TextEditingController();
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.openEditorOnLoad) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openEditor();
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -83,7 +97,13 @@ class _WordListScreenState extends State<WordListScreen> {
         title: const Text('単語一覧'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
-      body: Column(
+      body: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.keyN): _openEditor,
+        },
+        child: Focus(
+          autofocus: true,
+          child: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -172,8 +192,11 @@ class _WordListScreenState extends State<WordListScreen> {
           ),
         ],
       ),
+        ),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openEditor(),
+        tooltip: '新規追加 (N)',
         child: const Icon(Icons.add),
       ),
     );

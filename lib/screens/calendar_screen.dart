@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 import '../models/word.dart';
 import '../services/word_repository.dart';
 import '../widgets/meaning_display.dart';
 import 'quiz_setup_screen.dart';
+import 'word_list_screen.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -65,9 +67,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
         title: const Text('学習カレンダー'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
+      body: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.keyN): () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const WordListScreen(openEditorOnLoad: true),
+              ),
+            );
+          },
+        },
+        child: Focus(
+          autofocus: true,
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
               children: [
                 TableCalendar<Word>(
                   locale: 'ja_JP',
@@ -116,6 +130,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 Expanded(child: _buildDayList()),
               ],
             ),
+        ),
+      ),
     );
   }
 
