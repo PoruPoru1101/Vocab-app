@@ -115,15 +115,36 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       color: Theme.of(context).colorScheme.primary,
                       shape: BoxShape.circle,
                     ),
-                    markerDecoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.secondary,
-                      shape: BoxShape.circle,
-                    ),
-                    markersMaxCount: 3,
                   ),
                   headerStyle: const HeaderStyle(
                     formatButtonVisible: false,
                     titleCentered: true,
+                  ),
+                  calendarBuilders: CalendarBuilders<Word>(
+                    markerBuilder: (context, day, events) {
+                      if (events.isEmpty) return const SizedBox.shrink();
+                      return Container(
+                        margin: const EdgeInsets.only(top: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.secondary,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${events.length}',
+                          style: TextStyle(
+                            color:
+                                Theme.of(context).colorScheme.onSecondary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            height: 1.0,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
                 const Divider(height: 1),

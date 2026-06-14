@@ -24,6 +24,22 @@ class _WordListScreenState extends State<WordListScreen> {
   final _repo = WordRepository();
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  int _columns = 1;
+
+  IconData _iconForColumns(int n) {
+    switch (n) {
+      case 1:
+        return Icons.view_agenda_outlined;
+      case 2:
+        return Icons.view_column_outlined;
+      case 3:
+        return Icons.view_module_outlined;
+      case 4:
+        return Icons.grid_view_outlined;
+      default:
+        return Icons.view_agenda_outlined;
+    }
+  }
 
   @override
   void initState() {
@@ -94,8 +110,39 @@ class _WordListScreenState extends State<WordListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('単語一覧'),
+        title: StreamBuilder<List<Word>>(
+          stream: _repo.watchAll(),
+          builder: (context, snapshot) {
+            final count = snapshot.data?.length ?? 0;
+            return Text('単語一覧 ($count 個)');
+          },
+        ),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          PopupMenuButton<int>(
+            icon: Icon(_iconForColumns(_columns)),
+            tooltip: '表示列数',
+            onSelected: (v) => setState(() => _columns = v),
+            itemBuilder: (_) => [1, 2, 3, 4]
+                .map(
+                  (n) => PopupMenuItem<int>(
+                    value: n,
+                    child: Row(
+                      children: [
+                        Icon(_iconForColumns(n), size: 18),
+                        const SizedBox(width: 12),
+                        Text('$n 列'),
+                        if (n == _columns) ...[
+                          const SizedBox(width: 8),
+                          const Icon(Icons.check, size: 16),
+                        ],
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
       ),
       body: CallbackShortcuts(
         bindings: {
@@ -103,95 +150,112 @@ class _WordListScreenState extends State<WordListScreen> {
         },
         child: Focus(
           autofocus: true,
-          child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: '単語または意味で検索',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchQuery.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _searchQuery = '');
-                        },
-                      ),
-                isDense: true,
-                border: const OutlineInputBorder(),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: _columns == 1 ? 900 : double.infinity,
               ),
-              onChanged: (v) => setState(() => _searchQuery = v),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: '単語または意味で検索',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _searchQuery.isEmpty
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              ),
+                        isDense: true,
+                        border: const OutlineInputBorder(),
+                      ),
+                      onChanged: (v) => setState(() => _searchQuery = v),
+                    ),
+                  ),
+                  Expanded(
+                    child: StreamBuilder<List<Word>>(
+                      stream: _repo.watchAll(),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Text('エラー: ${snapshot.error}'),
+                            ),
+                          );
+                        }
+                        if (!snapshot.hasData) {
+                          return const Center(
+                              child: CircularProgressIndicator());
+                        }
+                        final allWords = snapshot.data!;
+                        if (allWords.isEmpty) {
+                          return const Center(
+                            child: Text(
+                              '単語がまだ登録されていません。\n右下の + から追加してください。',
+                              textAlign: TextAlign.center,
+                            ),
+                          );
+                        }
+                        final words = _filter(allWords);
+                        if (words.isEmpty) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Text(
+                                '"$_searchQuery" にヒットする単語はありません',
+                                style: TextStyle(
+                                    color: Theme.of(context).hintColor),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          );
+                        }
+                        return LayoutBuilder(
+                          builder: (context, layoutConstraints) {
+                            const spacing = 8.0;
+                            const horizontalPadding = 8.0;
+                            final cols = _columns;
+                            final available = layoutConstraints.maxWidth -
+                                horizontalPadding * 2;
+                            final cardWidth =
+                                (available - spacing * (cols - 1)) / cols;
+                            return SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(
+                                  horizontalPadding, 4, horizontalPadding, 80),
+                              child: Wrap(
+                                spacing: spacing,
+                                runSpacing: spacing,
+                                alignment: WrapAlignment.start,
+                                children: [
+                                  for (final w in words)
+                                    SizedBox(
+                                      width: cardWidth,
+                                      child: _WordCard(
+                                        word: w,
+                                        onTap: () => _openEditor(existing: w),
+                                        onDelete: () => _confirmDelete(w),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          Expanded(
-            child: StreamBuilder<List<Word>>(
-              stream: _repo.watchAll(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text('エラー: ${snapshot.error}'),
-                    ),
-                  );
-                }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final allWords = snapshot.data!;
-                if (allWords.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      '単語がまだ登録されていません。\n右下の + から追加してください。',
-                      textAlign: TextAlign.center,
-                    ),
-                  );
-                }
-                final words = _filter(allWords);
-                if (words.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        '"$_searchQuery" にヒットする単語はありません',
-                        style: TextStyle(color: Theme.of(context).hintColor),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  );
-                }
-                return ListView.separated(
-                  itemCount: words.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final w = words[index];
-                    return ListTile(
-                      title: Text(
-                        w.english,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: MeaningsDisplay(meanings: w.meanings),
-                      ),
-                      isThreeLine: w.meanings.length >= 2,
-                      onTap: () => _openEditor(existing: w),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _confirmDelete(w),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
         ),
       ),
       floatingActionButton: FloatingActionButton(
@@ -199,6 +263,133 @@ class _WordListScreenState extends State<WordListScreen> {
         tooltip: '新規追加 (N)',
         child: const Icon(Icons.add),
       ),
+    );
+  }
+}
+
+class _WordCard extends StatelessWidget {
+  const _WordCard({
+    required this.word,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  final Word word;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  String _fmtDate(DateTime d) => '${d.month}/${d.day}';
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hintColor = theme.hintColor;
+    final isDue = word.isDueForReview;
+    final dueColor = isDue ? theme.colorScheme.tertiary : hintColor;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Row 1: 英単語 + 削除ボタン
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Text(
+                      word.english,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.delete_outline,
+                        size: 20, color: hintColor),
+                    onPressed: onDelete,
+                    tooltip: '削除',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              // Row 2: 意味 (品詞付き)
+              MeaningsDisplay(
+                meanings: word.meanings,
+                textStyle: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 10),
+              // Row 3: メタ情報 (復習Lv / 次回 / 追加日)
+              Wrap(
+                spacing: 14,
+                runSpacing: 4,
+                children: [
+                  _MetaItem(
+                    icon: Icons.school_outlined,
+                    label: 'Lv.${word.reviewLevel}',
+                    color: hintColor,
+                  ),
+                  if (word.nextReviewDue != null)
+                    _MetaItem(
+                      icon: Icons.event_repeat_outlined,
+                      label: isDue
+                          ? '復習可'
+                          : '次回 ${_fmtDate(word.nextReviewDue!)}',
+                      color: dueColor,
+                      bold: isDue,
+                    ),
+                  if (word.createdAt != null)
+                    _MetaItem(
+                      icon: Icons.calendar_today_outlined,
+                      label: '追加 ${_fmtDate(word.createdAt!)}',
+                      color: hintColor,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MetaItem extends StatelessWidget {
+  const _MetaItem({
+    required this.icon,
+    required this.label,
+    required this.color,
+    this.bold = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool bold;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: color,
+            fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ],
     );
   }
 }
